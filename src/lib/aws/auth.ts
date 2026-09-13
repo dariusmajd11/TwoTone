@@ -1,6 +1,8 @@
 import { createHmac, randomUUID, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import {
+  AdminConfirmSignUpCommand,
+  AdminUpdateUserAttributesCommand,
   InitiateAuthCommand,
   SignUpCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
@@ -86,6 +88,25 @@ class LocalAuthProvider implements AuthProvider {
   }
 }
 
+/**
+ * Cognito signals everything through exception names. Translating the handful
+ * users can actually trigger keeps those cases as 4xx responses with readable
+ * copy, while anything unrecognised still surfaces as a 500 worth investigating.
+ */
+function rethrowAsAuthError(error: unknown): never {
+  const name = error instanceof Error ? error.name : "";
+  if (name === "UsernameExistsException") {
+    throw new AuthError("An account with that email already exists.");
+  }
+  if (name === "InvalidPasswordException") {
+    throw new AuthError("That password does not meet the password policy.");
+  }
+  if (name === "NotAuthorizedException" || name === "UserNotFoundException") {
+    throw new AuthError("Incorrect email or password.");
+  }
+  throw error;
+}
+
 class CognitoAuthProvider implements AuthProvider {
   private secretHash(email: string): string | undefined {
     if (!env.cognitoClientSecret) return undefined;
@@ -104,7 +125,25 @@ class CognitoAuthProvider implements AuthProvider {
         Password: password,
         UserAttributes: [{ Name: "email", Value: normalized }],
       }),
+    ).catch(rethrowAsAuthError);
+    // Cognito leaves new signups UNCONFIRMED, which blocks login until the user
+    // enters an emailed code. We confirm server-side instead so registration is
+    // a single step. Marking the email verified too, otherwise a future
+    // forgot-password flow would have no channel to send the reset code to.
+    await cognitoClient().send(
+      new AdminConfirmSignUpCommand({
+        UserPoolId: env.cognitoUserPoolId!,
+        Username: normalized,
+      }),
     );
+    await cognitoClient().send(
+      new AdminUpdateUserAttributesCommand({
+        UserPoolId: env.cognitoUserPoolId!,
+        Username: normalized,
+        UserAttributes: [{ Name: "email_verified", Value: "true" }],
+      }),
+    );
+
     // Cognito owns the credential; DynamoDB owns app-level profile data, keyed
     // by the Cognito sub so the two stay joinable.
     return userDatabase.createUser({
@@ -128,7 +167,7 @@ class CognitoAuthProvider implements AuthProvider {
             : {}),
         },
       }),
-    );
+    ).catch(rethrowAsAuthError);
     const auth = res.AuthenticationResult;
     if (!auth?.AccessToken) throw new AuthError("Incorrect email or password.");
 

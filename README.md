@@ -36,17 +36,39 @@ without touching application code.
 All AWS paths additionally require `AWS_ACCESS_KEY_ID` and
 `AWS_SECRET_ACCESS_KEY`.
 
-### AWS resources to create
+### AWS resources
 
-- **S3 bucket** — private; images are served through `/api/uploads/[key]` rather
-  than public URLs.
-- **DynamoDB users table** — partition key `id` (string), plus a global secondary
-  index named `email-index` with partition key `email`.
-- **DynamoDB history table** — partition key `userId` (string), sort key
-  `createdAt` (string). Sorting on `createdAt` is what makes newest-first history
-  a cheap reverse query.
-- **Cognito user pool** — with an app client that permits the
-  `USER_PASSWORD_AUTH` flow.
+These exist in one account, all in `us-east-1`:
+
+- **S3 bucket `twotone-images`** — all public access blocked. Images are served
+  through `/api/uploads/[key]`, which reads from S3 server-side, so the bucket
+  never needs to be public.
+- **DynamoDB `twotone-users`** — partition key `id` (string), plus a global
+  secondary index `email-index` on `email`. The GSI exists because login looks
+  users up by email, and DynamoDB can only query by key.
+- **DynamoDB `twotone-history`** — partition key `userId`, sort key `createdAt`.
+  Sorting on `createdAt` is what makes newest-first history a cheap reverse
+  query instead of a full scan.
+- **Cognito pool `twotone`** — app client
+  `twotone-server` with a client secret and `ALLOW_USER_PASSWORD_AUTH`. Because
+  the client has a secret, every call sends a `SECRET_HASH`; `src/lib/aws/auth.ts`
+  computes it.
+- **IAM user `twotone-app`** — the credentials the app actually runs as. Its
+  inline policy grants only what the code calls: `PutObject`/`GetObject` on
+  `twotone-images/uploads/*`, `PutItem`/`GetItem`/`Query` on the two tables and
+  the GSI, and four Cognito actions on that one pool. It deliberately cannot
+  list buckets, scan tables, or touch IAM.
+
+Both tables are `PAY_PER_REQUEST`, so they cost nothing when idle.
+
+### A note on signup
+
+Cognito leaves new signups `UNCONFIRMED`, which would block login until the user
+entered an emailed code. `CognitoAuthProvider.register` calls
+`AdminConfirmSignUp` server-side instead, so registration stays one step — and
+sets `email_verified` so a future forgot-password flow has somewhere to send the
+code. The tradeoff is that nobody proves they own the address they sign up with.
+Adding real verification means a confirmation route plus a code-entry UI step.
 
 ## Deploying to Vercel
 
