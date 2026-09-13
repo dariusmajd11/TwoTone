@@ -1,0 +1,148 @@
+import type { IdentificationRecord, ProductionStatus } from "@/lib/types";
+
+const STATUS_LABEL: Record<ProductionStatus, string> = {
+  "in-production": "Still in production",
+  discontinued: "Discontinued",
+  "seasonal-archive": "Seasonal archive",
+  unknown: "Production status unknown",
+};
+
+const CONFIDENCE_LABEL = {
+  high: "Confident on the brand",
+  medium: "Fairly sure on the brand",
+  low: "Best guess on the brand",
+} as const;
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] uppercase tracking-widest text-muted">{label}</dt>
+      <dd className="mt-1 text-sm">{value}</dd>
+    </div>
+  );
+}
+
+function money(amount: number) {
+  return `$${Math.round(amount).toLocaleString("en-US")}`;
+}
+
+export function GarmentCard({ record }: { record: IdentificationRecord }) {
+  const { result, marketLinks } = record;
+  const used = marketLinks.filter((l) => l.market === "used");
+  const neu = marketLinks.filter((l) => l.market === "new");
+
+  return (
+    <div className="rounded-2xl border border-line bg-panel">
+      <div className="border-b border-line p-5">
+        <p className="text-[11px] uppercase tracking-widest text-muted">
+          {result.brand}
+        </p>
+        <h2 className="mt-1 text-2xl font-medium tracking-tight">{result.name}</h2>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+          <span className="rounded-full border border-line px-2.5 py-1 text-muted">
+            {STATUS_LABEL[result.productionStatus]}
+          </span>
+          <span className="rounded-full border border-line px-2.5 py-1 text-muted">
+            {CONFIDENCE_LABEL[result.brandConfidence]}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-5">
+        <p className="text-sm leading-relaxed text-foreground/85">
+          {result.description}
+        </p>
+
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Field
+            label="Year"
+            value={
+              result.year
+                ? `${result.year}${result.season ? ` · ${result.season}` : ""}`
+                : "Unknown"
+            }
+          />
+          <Field label="Category" value={result.category} />
+          {result.colors.length > 0 && (
+            <Field label="Colour" value={result.colors.join(", ")} />
+          )}
+          {result.materials.length > 0 && (
+            <Field label="Material" value={result.materials.join(", ")} />
+          )}
+          {result.estimatedRetailUsd !== null && (
+            <Field label="Retail" value={money(result.estimatedRetailUsd)} />
+          )}
+          {result.estimatedResaleUsd && (
+            <Field
+              label="Resale"
+              value={`${money(result.estimatedResaleUsd.low)} – ${money(
+                result.estimatedResaleUsd.high,
+              )}`}
+            />
+          )}
+        </dl>
+
+        {result.identifyingDetails.length > 0 && (
+          <div>
+            <p className="text-[11px] uppercase tracking-widest text-muted">
+              How we know
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {result.identifyingDetails.map((detail) => (
+                <li
+                  key={detail}
+                  className="flex gap-2.5 text-sm text-foreground/80"
+                >
+                  <span aria-hidden className="text-accent">
+                    —
+                  </span>
+                  {detail}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {(used.length > 0 || neu.length > 0) && (
+          <div className="space-y-3">
+            {neu.length > 0 && <MarketRow label="Buy new" links={neu} />}
+            {used.length > 0 && <MarketRow label="Buy used" links={used} />}
+          </div>
+        )}
+
+        {result.caveat && (
+          <p className="border-t border-line pt-4 text-xs leading-relaxed text-muted">
+            {result.caveat}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MarketRow({
+  label,
+  links,
+}: {
+  label: string;
+  links: IdentificationRecord["marketLinks"];
+}) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-widest text-muted">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {links.map((link) => (
+          <a
+            key={link.marketplace}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-full border border-line px-3 py-1.5 text-xs transition hover:border-accent hover:text-accent"
+          >
+            {link.marketplace}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
