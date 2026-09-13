@@ -1,4 +1,5 @@
 import { AuthError, authProvider } from "@/lib/aws/auth";
+import { validatePassword } from "@/lib/password";
 
 export async function POST(request: Request) {
   const { email, password, displayName } = await request.json();
@@ -6,11 +7,9 @@ export async function POST(request: Request) {
   if (typeof email !== "string" || !email.includes("@")) {
     return Response.json({ error: "Enter a valid email address." }, { status: 400 });
   }
-  if (typeof password !== "string" || password.length < 8) {
-    return Response.json(
-      { error: "Password must be at least 8 characters." },
-      { status: 400 },
-    );
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return Response.json({ error: passwordError }, { status: 400 });
   }
 
   try {

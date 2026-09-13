@@ -70,6 +70,13 @@ sets `email_verified` so a future forgot-password flow has somewhere to send the
 code. The tradeoff is that nobody proves they own the address they sign up with.
 Adding real verification means a confirmation route plus a code-entry UI step.
 
+Passwords must be at least 12 characters with an uppercase letter, a lowercase
+letter, and a number. The pool enforces this, but the pool only answers once a
+request reaches AWS and the local fallback provider has no policy at all — so
+`src/lib/password.ts` holds the same rule for the form and the register route.
+**If you change the policy on the pool, change that file too**; nothing detects
+the drift for you.
+
 ## Deploying to Vercel
 
 Set the same environment variables in the Vercel project settings. Note that the

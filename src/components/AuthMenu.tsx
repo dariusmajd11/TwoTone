@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PASSWORD_MIN_LENGTH, PASSWORD_RULE } from "@/lib/password";
 import type { User } from "@/lib/types";
 
 type Mode = "login" | "register";
@@ -127,12 +128,19 @@ function AuthForm({
       <input
         type="password"
         required
-        minLength={8}
+        minLength={mode === "register" ? PASSWORD_MIN_LENGTH : undefined}
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
       />
+
+      {/* Stating the rule up front beats making someone discover it one
+          rejected submission at a time. Existing accounts predate the rule,
+          so only registration shows it. */}
+      {mode === "register" && !error && (
+        <p className="text-xs text-muted">{PASSWORD_RULE}</p>
+      )}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 

@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /out/
+.turbo/
 
 # production
 /build
@@ -24,7 +25,17 @@
 .DS_Store
 *.pem
 
+# editors
+.idea/
+.vscode/
+*.swp
+
+# Claude Code — launch.json is shared project config, the rest is per-developer
+.claude/*
+!.claude/launch.json
+
 # debug
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
