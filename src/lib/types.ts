@@ -39,8 +39,13 @@ export type GarmentIdentification = {
 export type IdentificationRecord = {
   id: string;
   userId: string | null;
-  imageKey: string;
-  imageUrl: string;
+  /**
+   * Null for signed-out visitors. Their photo is identified in memory and never
+   * stored, since there is no account to show it in later — keeping it would
+   * leave an object nothing can reach.
+   */
+  imageKey: string | null;
+  imageUrl: string | null;
   result: GarmentIdentification;
   marketLinks: MarketLink[];
   createdAt: string;

@@ -34,24 +34,29 @@ export async function POST(request: Request) {
   const bytes = Buffer.from(await file.arrayBuffer());
 
   try {
-    const stored = await imageStorage.put(bytes, file.type);
+    const session = await getSession();
+
+    // Only signed-in visitors get their photo stored. Without an account there
+    // is nowhere to show it again, so an upload would just be an orphan in the
+    // bucket — paid for, unreachable, and never deleted. Anonymous visitors
+    // still get a full result; it just is not kept.
+    const stored = session ? await imageStorage.put(bytes, file.type) : null;
+
     const result = await garmentIdentifier.identify(
       bytes.toString("base64"),
       file.type,
     );
 
-    const session = await getSession();
     const record: IdentificationRecord = {
       id: randomUUID(),
       userId: session?.userId ?? null,
-      imageKey: stored.key,
-      imageUrl: stored.url,
+      imageKey: stored?.key ?? null,
+      imageUrl: stored?.url ?? null,
       result,
       marketLinks: buildMarketLinks(result),
       createdAt: new Date().toISOString(),
     };
 
-    // Anonymous visitors still get a result; only signed-in users get history.
     if (record.userId) await userDatabase.saveIdentification(record);
 
     return Response.json({ record });

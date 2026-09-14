@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthMenu } from "@/components/AuthMenu";
 import { GarmentCard } from "@/components/GarmentCard";
-import type { IdentificationRecord } from "@/lib/types";
+import { HistoryPanel } from "@/components/HistoryPanel";
+import type { IdentificationRecord, User } from "@/lib/types";
 
 type Entry = {
   id: string;
@@ -14,19 +15,33 @@ type Entry = {
   error?: string;
 };
 
+type View = "identify" | "history";
+
 export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [view, setView] = useState<View>("identify");
   const inputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [entries]);
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => setUser(d.user))
+      .catch(() => setUser(null));
+  }, []);
+
+  useEffect(() => {
+    if (view === "identify") endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [entries, view]);
 
   const identify = useCallback(async (file: File) => {
     const id = crypto.randomUUID();
     const previewUrl = URL.createObjectURL(file);
+    // Dropping a photo while reading history means you want a new answer, so
+    // the result is not buried behind a tab you are not looking at.
+    setView("identify");
     setEntries((prev) => [
       ...prev,
       { id, previewUrl, fileName: file.name, status: "pending" },
@@ -96,12 +111,44 @@ export default function Home() {
             Identify any garment from a photo
           </span>
         </div>
-        <AuthMenu />
+
+        <div className="flex items-center gap-4">
+          {/* History belongs to an account, so the tab only exists with one. */}
+          {user && (
+            <nav className="flex items-center gap-1 rounded-full border border-line p-0.5 text-xs">
+              {(["identify", "history"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setView(tab)}
+                  aria-current={view === tab ? "page" : undefined}
+                  className={`rounded-full px-3 py-1.5 capitalize transition ${
+                    view === tab
+                      ? "bg-accent text-background"
+                      : "text-muted hover:text-accent"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </nav>
+          )}
+          <AuthMenu
+            user={user}
+            onUser={(next) => {
+              setUser(next);
+              // Signing out has to drop you out of a tab you can no longer load.
+              if (!next) setView("identify");
+            }}
+          />
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-10">
-        {entries.length === 0 ? (
-          <Empty onPick={() => inputRef.current?.click()} />
+        {view === "history" ? (
+          <HistoryPanel />
+        ) : entries.length === 0 ? (
+          <Empty onPick={() => inputRef.current?.click()} signedIn={!!user} />
         ) : (
           <div className="space-y-10">
             {entries.map((entry) => (
@@ -161,7 +208,7 @@ export default function Home() {
   );
 }
 
-function Empty({ onPick }: { onPick: () => void }) {
+function Empty({ onPick, signedIn }: { onPick: () => void; signedIn: boolean }) {
   return (
     <div className="flex flex-col items-center py-24 text-center">
       <h1 className="max-w-md text-3xl leading-tight font-medium tracking-tight text-balance">
@@ -179,6 +226,14 @@ function Empty({ onPick }: { onPick: () => void }) {
       >
         Choose a photo
       </button>
+      {/* Say it before the upload, not after — someone identifying a piece they
+          care about should know it is not being kept. */}
+      {!signedIn && (
+        <p className="mt-6 max-w-xs text-xs leading-relaxed text-muted">
+          Signed out, your photo is read once and never stored. Sign in to keep a
+          history of what you have identified.
+        </p>
+      )}
     </div>
   );
 }

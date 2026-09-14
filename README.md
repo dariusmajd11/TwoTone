@@ -38,7 +38,9 @@ All AWS paths additionally require `AWS_ACCESS_KEY_ID` and
 
 ### AWS resources
 
-These exist in one account, all in `us-east-1`:
+These all live in one account in `us-east-1`. The account ID, pool ID, and
+client ID are deployment details rather than code — they belong in `.env.local`
+and in the Vercel project settings, not in a public repo:
 
 - **S3 bucket `twotone-images`** — all public access blocked. Images are served
   through `/api/uploads/[key]`, which reads from S3 server-side, so the bucket
@@ -49,10 +51,9 @@ These exist in one account, all in `us-east-1`:
 - **DynamoDB `twotone-history`** — partition key `userId`, sort key `createdAt`.
   Sorting on `createdAt` is what makes newest-first history a cheap reverse
   query instead of a full scan.
-- **Cognito pool `twotone`** — app client
-  `twotone-server` with a client secret and `ALLOW_USER_PASSWORD_AUTH`. Because
-  the client has a secret, every call sends a `SECRET_HASH`; `src/lib/aws/auth.ts`
-  computes it.
+- **Cognito pool `twotone`** — app client `twotone-server` with a client secret
+  and `ALLOW_USER_PASSWORD_AUTH`. Because the client has a secret, every call
+  sends a `SECRET_HASH`; `src/lib/aws/auth.ts` computes it.
 - **IAM user `twotone-app`** — the credentials the app actually runs as. Its
   inline policy grants only what the code calls: `PutObject`/`GetObject` on
   `twotone-images/uploads/*`, `PutItem`/`GetItem`/`Query` on the two tables and
@@ -77,6 +78,18 @@ request reaches AWS and the local fallback provider has no policy at all — so
 **If you change the policy on the pool, change that file too**; nothing detects
 the drift for you.
 
+### A note on what gets stored
+
+Photos are only written to S3 when someone is signed in. A signed-out visitor
+gets the same full result, identified from bytes held in memory, but nothing is
+kept — without an account there is nowhere to show the photo again, so storing
+it would leave an object in the bucket that nothing can reach and nothing will
+ever delete. `imageKey` and `imageUrl` on the record are null in that case.
+
+This is why `/api/identify` resolves the session *before* touching storage.
+Moving that call back below the upload would silently start collecting orphans
+again.
+
 ## Deploying to Vercel
 
 Set the same environment variables in the Vercel project settings. Note that the
@@ -93,8 +106,8 @@ src/
       uploads/[key]/  serves stored images from S3 or disk
       auth/           register, login, logout, me
       history/        past identifications for the signed-in user
-    page.tsx          the chat-style interface
-  components/         GarmentCard, AuthMenu
+    page.tsx          the chat-style interface, Identify/History tabs
+  components/         GarmentCard, HistoryPanel, AuthMenu
   lib/
     aws/              storage, users, auth — each local + AWS
     identify.ts       Claude vision identification

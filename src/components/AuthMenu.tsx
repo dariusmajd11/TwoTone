@@ -1,25 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PASSWORD_MIN_LENGTH, PASSWORD_RULE } from "@/lib/password";
 import type { User } from "@/lib/types";
 
 type Mode = "login" | "register";
 
-export function AuthMenu() {
-  const [user, setUser] = useState<User | null>(null);
+/**
+ * Controlled by the page rather than owning the session itself, because more
+ * than the menu depends on who is signed in — the History tab only exists for
+ * an account, and it has to disappear the moment one signs out.
+ */
+export function AuthMenu({
+  user,
+  onUser,
+}: {
+  user: User | null;
+  onUser: (user: User | null) => void;
+}) {
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => setUser(d.user))
-      .catch(() => setUser(null));
-  }, []);
 
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
-    setUser(null);
+    onUser(null);
   }
 
   if (user) {
@@ -46,7 +49,7 @@ export function AuthMenu() {
         <AuthForm
           onClose={() => setOpen(false)}
           onSignedIn={(u) => {
-            setUser(u);
+            onUser(u);
             setOpen(false);
           }}
         />
