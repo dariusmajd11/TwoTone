@@ -8,7 +8,7 @@ import type { Recommendation } from "@/lib/types";
  * Recommendations are the most expensive thing in the app to produce — a full
  * model call with thinking — and the least likely to change between two page
  * loads, since the input is a profile the wearer edits perhaps twice a year.
- * Without a cache, opening the home page twice costs twice.
+ * Without a cache, opening the feed twice costs twice.
  *
  * Keyed by the profile's own `updatedAt`, so saving new answers invalidates the
  * entry by definition rather than by remembering to clear it.
@@ -37,7 +37,7 @@ export async function GET() {
   const taste = await userDatabase.getTaste(session.userId);
   if (!profileIsUsable(taste)) {
     // Not an error: a new account legitimately has nothing to recommend from,
-    // and the home page uses this to invite them into the setup page.
+    // and the feed uses this to invite them into the setup page.
     return Response.json({ recommendations: [], needsSetup: true, live: recommendationsAreLive });
   }
 

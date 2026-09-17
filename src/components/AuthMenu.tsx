@@ -7,45 +7,18 @@ import type { User } from "@/lib/types";
 type Mode = "login" | "register";
 
 /**
+ * The way in, and only the way in.
+ *
+ * Signing *out* deliberately lives in the three-bar menu instead of here, next
+ * to the account it ends. That leaves this with one job, so the page renders it
+ * only while signed out — an account's header has a house and a menu and no
+ * third control competing with them.
+ *
  * Controlled by the page rather than owning the session itself, because more
- * than the menu depends on who is signed in — the History tab only exists for
- * an account, and it has to disappear the moment one signs out.
+ * than this button depends on who is signed in.
  */
-export function AuthMenu({
-  user,
-  onUser,
-}: {
-  user: User | null;
-  onUser: (user: User | null) => void;
-}) {
+export function AuthMenu({ onUser }: { onUser: (user: User) => void }) {
   const [open, setOpen] = useState(false);
-
-  async function signOut() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    onUser(null);
-  }
-
-  if (user) {
-    return (
-      <div className="flex min-w-0 items-center gap-3 text-xs">
-        {/* Who you are is reassurance, not a control — it yields first when the
-            header runs out of room, and truncates rather than shoving the only
-            actual button off the edge. Secret Code is near-monospace and far
-            wider than a proportional face, so this overflows sooner than the
-            character count suggests. */}
-        <span className="hidden max-w-[16ch] truncate text-muted sm:inline-block">
-          {user.displayName ?? user.email}
-        </span>
-        <button
-          type="button"
-          onClick={signOut}
-          className="shrink-0 text-muted hover:text-accent"
-        >
-          Sign out
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="relative">

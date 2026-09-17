@@ -155,8 +155,8 @@ export function TasteSetup({
           {existing ? "Your taste" : "What are you into?"}
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-foreground/85">
-          Pick whatever you recognise. This is what the home page reads when it
-          puts together a feed for you, and you can change it whenever.
+          Pick whatever you recognise. This is what your For You feed is built
+          from, and you can change it whenever.
         </p>
       </div>
 

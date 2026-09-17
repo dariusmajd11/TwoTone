@@ -10,7 +10,7 @@ import {
 import { AuthMenu } from "@/components/AuthMenu";
 import { ForYou } from "@/components/ForYou";
 import { GarmentCard } from "@/components/GarmentCard";
-import { MainMenu } from "@/components/MainMenu";
+import { MainMenu, type MenuView } from "@/components/MainMenu";
 import { HistoryPanel } from "@/components/HistoryPanel";
 import { WishlistPanel } from "@/components/WishlistPanel";
 import { SEARCH_QUERY_MAX } from "@/lib/search";
@@ -34,12 +34,22 @@ type Entry = {
 };
 
 /**
- * `home` is what used to be `identify`: the same photo and search bars, now
- * sharing the screen with a feed built from the wearer's taste. `setup` is the
- * questionnaire behind that feed, which is a screen rather than a modal because
- * it is long enough to scroll and worth coming back to.
+ * `home` is the question the app exists to answer — the photo and search bars,
+ * and whatever you have asked so far. It is what both doors open onto: the
+ * cover's one button, and the house in the header.
+ *
+ * The feed reads like a destination, but it is not the one to land on. Arriving
+ * on a list of things to buy answers a question nobody has asked yet, and it is
+ * the slowest screen in the app to boot besides — so `foryou` sits in the menu
+ * with the other places you visit and leave again. `setup` is the questionnaire
+ * behind it, a screen rather than a modal because it is long enough to scroll.
  */
-type View = "home" | "history" | "wishlist" | "setup";
+type View = "home" | "foryou" | "history" | "wishlist" | "setup";
+
+/** Everything the three-bar menu can reach, which is every view but `home`. */
+function isMenuView(view: View): view is MenuView {
+  return view === "foryou" || view === "history" || view === "wishlist";
+}
 
 export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -101,6 +111,17 @@ export default function Home() {
     if (view === "home")
       endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries, view]);
+
+  /**
+   * Ends the session and puts you back on the home page, which is the one
+   * screen that still works without an account. Staying put would leave you
+   * looking at a feed or a history that can no longer be loaded.
+   */
+  const signOut = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setUser(null);
+    setView("home");
+  }, []);
 
   /**
    * A photo and a typed search are the same interaction with different input:
@@ -226,41 +247,34 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* The house, the account and the menu. All three belong to an
-                  account, so none of them exist without one. */}
-              {user && (
-                <button
-                  type="button"
-                  onClick={() => setView("home")}
-                  aria-label="Home"
-                  aria-current={view === "home" ? "page" : undefined}
-                  className={`flex size-9 items-center justify-center rounded-full border transition ${
-                    view === "home"
-                      ? "border-accent bg-accent text-background"
-                      : "border-line text-muted hover:border-accent hover:text-accent"
-                  }`}
-                >
-                  <HouseMark />
-                </button>
-              )}
+              {/* Signed in it is the house and the menu and nothing else: two
+                  marks of the same size, one for where you land and one for
+                  everywhere else. Signed out there is only the way in. */}
+              {user ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setView("home")}
+                    aria-label="Home"
+                    aria-current={view === "home" ? "page" : undefined}
+                    className={`flex size-9 items-center justify-center rounded-full border transition ${
+                      view === "home"
+                        ? "border-accent bg-accent text-background"
+                        : "border-line text-muted hover:border-accent hover:text-accent"
+                    }`}
+                  >
+                    <HouseMark />
+                  </button>
 
-              <AuthMenu
-                user={user}
-                onUser={(next) => {
-                  setUser(next);
-                  // Signing out has to drop you out of a screen you can no
-                  // longer load, and the setup page is one of those.
-                  if (!next) setView("home");
-                }}
-              />
-
-              {user && (
-                <MainMenu
-                  active={
-                    view === "history" || view === "wishlist" ? view : null
-                  }
-                  onSelect={setView}
-                />
+                  <MainMenu
+                    email={user.displayName ?? user.email}
+                    active={isMenuView(view) ? view : null}
+                    onSelect={setView}
+                    onSignOut={signOut}
+                  />
+                </>
+              ) : (
+                <AuthMenu onUser={setUser} />
               )}
             </div>
           </header>
@@ -280,26 +294,28 @@ export default function Home() {
               <HistoryPanel />
             ) : view === "wishlist" ? (
               <WishlistPanel />
+            ) : view === "foryou" ? (
+              <ForYou onOpen={search} onSetup={() => setView("setup")} />
             ) : view === "setup" ? (
               <TasteSetup
                 existing={taste}
                 onSaved={(next) => {
                   setTaste(next);
-                  setView("home");
+                  // Onto the feed rather than home, because the feed is what
+                  // the answers were for — sending someone back to the search
+                  // bar would leave them wondering what the questions did.
+                  setView("foryou");
                 }}
                 onSkip={() => setView("home")}
               />
             ) : entries.length === 0 ? (
-              // Signed in, the feed is the home page. Signed out there is
-              // nothing to build one from, so the pitch stands in its place.
-              user ? (
-                <ForYou onOpen={search} onSetup={() => setView("setup")} />
-              ) : (
-                <Empty
-                  onPick={() => inputRef.current?.click()}
-                  signedIn={!!user}
-                />
-              )
+              // The same question whether or not you are signed in. An account
+              // buys you a history, a wishlist and a feed; it does not change
+              // what the app is for, so it does not change where you land.
+              <Empty
+                onPick={() => inputRef.current?.click()}
+                signedIn={!!user}
+              />
             ) : (
               <div className="space-y-10">
                 {entries.map((entry) => (

@@ -2,21 +2,33 @@
 
 import { useEffect, useRef, useState } from "react";
 
+export type MenuView = "foryou" | "history" | "wishlist";
+
 /**
- * The three-bar menu at the top right, holding the two screens that are not
- * the home page.
+ * The three-bar menu at the top right: everywhere you can go that is not the
+ * home page, plus the account the going belongs to.
  *
- * History and WishList moved in here when the home page took over the header.
- * They are both places you go occasionally and leave again, which is what a
- * menu is for; the home page is where you land, so it keeps a permanent mark
- * of its own rather than a row in here.
+ * Home is the one destination deliberately kept out. It is where you land and
+ * the place you return to most, so it keeps a permanent mark of its own in the
+ * header — the rows in here are all places you visit and leave again, which is
+ * what a menu is for.
  */
+const ITEMS: { view: MenuView; label: string }[] = [
+  { view: "foryou", label: "For You" },
+  { view: "history", label: "History" },
+  { view: "wishlist", label: "WishList" },
+];
+
 export function MainMenu({
+  email,
   active,
   onSelect,
+  onSignOut,
 }: {
-  active: "history" | "wishlist" | null;
-  onSelect: (view: "history" | "wishlist") => void;
+  email: string;
+  active: MenuView | null;
+  onSelect: (view: MenuView) => void;
+  onSignOut: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -61,9 +73,16 @@ export function MainMenu({
       {open && (
         <div
           role="menu"
-          className="slab-menu absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl"
+          className="slab-menu absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-xl"
         >
-          {(["history", "wishlist"] as const).map((view) => (
+          {/* Who you are, now that the header no longer says it. Not a control
+              and not a menu item — it is the label on the drawer everything
+              below it acts on, which matters most right above "Sign out". */}
+          <p className="truncate border-b border-line px-4 py-2.5 text-[10px] tracking-[0.14em] text-muted uppercase">
+            {email}
+          </p>
+
+          {ITEMS.map(({ view, label }) => (
             <button
               key={view}
               type="button"
@@ -79,9 +98,25 @@ export function MainMenu({
                   : "text-muted hover:text-accent"
               }`}
             >
-              {view === "history" ? "History" : "WishList"}
+              {label}
             </button>
           ))}
+
+          {/* Ruled off from the navigation above it. The other rows move you
+              between screens and cost nothing to undo; this one ends the
+              session, so it should not sit flush against them where a slipped
+              click lands. */}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onSignOut();
+            }}
+            className="block w-full border-t border-line px-4 py-2.5 text-left text-xs tracking-[0.14em] text-muted uppercase transition hover:text-accent"
+          >
+            Sign out
+          </button>
         </div>
       )}
     </div>
