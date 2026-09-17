@@ -4,7 +4,8 @@ import { useState } from "react";
 import { PASSWORD_MIN_LENGTH, PASSWORD_RULE } from "@/lib/password";
 import type { User } from "@/lib/types";
 
-type Mode = "login" | "register";
+/** Which side of the form is showing. Exported for callers that open it. */
+export type AuthMode = "login" | "register";
 
 /**
  * The way in, and only the way in.
@@ -31,6 +32,7 @@ export function AuthMenu({ onUser }: { onUser: (user: User) => void }) {
       </button>
       {open && (
         <AuthForm
+          className="absolute right-0 z-20 mt-3 w-72"
           onClose={() => setOpen(false)}
           onSignedIn={(u) => {
             onUser(u);
@@ -42,14 +44,27 @@ export function AuthMenu({ onUser }: { onUser: (user: User) => void }) {
   );
 }
 
-function AuthForm({
+/**
+ * Email, password, and the switch between signing in and signing up.
+ *
+ * Exported because it has two homes: a dropdown under the header button, and
+ * the middle of the welcome screen. Only the placement differs, so only the
+ * placement is passed in — the form itself brings no position of its own, and
+ * `initialMode` lets the welcome screen's two buttons open the same form on
+ * the side each of them named.
+ */
+export function AuthForm({
+  initialMode = "login",
+  className = "",
   onClose,
   onSignedIn,
 }: {
+  initialMode?: AuthMode;
+  className?: string;
   onClose: () => void;
   onSignedIn: (user: User) => void;
 }) {
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +104,7 @@ function AuthForm({
   return (
     <form
       onSubmit={submit}
-      className="absolute right-0 z-20 mt-3 w-72 space-y-3 slab-menu rounded-2xl p-4"
+      className={`slab-menu space-y-3 rounded-2xl p-4 ${className}`}
     >
       <div className="flex items-center justify-between">
         <p className="archive-label">

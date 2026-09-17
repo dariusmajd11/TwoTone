@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { AuthMenu } from "@/components/AuthMenu";
+import { AuthForm, AuthMenu, type AuthMode } from "@/components/AuthMenu";
 import { ForYou } from "@/components/ForYou";
 import { GarmentCard } from "@/components/GarmentCard";
 import { MainMenu, type MenuView } from "@/components/MainMenu";
@@ -51,17 +51,28 @@ function isMenuView(view: View): view is MenuView {
   return view === "foryou" || view === "history" || view === "wishlist";
 }
 
+/**
+ * The three screens before the screens: the cover, the welcome that asks for an
+ * account, and the app itself.
+ *
+ * `welcome` is skipped for anyone already signed in, and skippable by everyone
+ * else. It is there to make the case for an account at the one moment the case
+ * is worth making — before you have looked anything up — rather than after,
+ * when it would be interrupting.
+ */
+type Stage = "cover" | "welcome" | "app";
+
 export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [dragging, setDragging] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<View>("home");
-  // The splash is the default because it is the front door, not a preference —
+  // The cover is the default because it is the front door, not a preference —
   // there is nothing to restore, so it does not need to survive a reload.
-  const [entered, setEntered] = useState(false);
+  const [stage, setStage] = useState<Stage>("cover");
   // The trip back out to the cover, which gets the same exit the cover gets on
   // the way in — the transition belongs to the crossing, not to one direction.
-  const leavingApp = useExit(useCallback(() => setEntered(false), []));
+  const leavingApp = useExit(useCallback(() => setStage("cover"), []));
   const [loadedTaste, setTaste] = useState<TasteProfile | null>(null);
   /**
    * Scoped to the signed-in account rather than cleared on sign-out. Clearing
@@ -131,11 +142,11 @@ export default function Home() {
   const ask = useCallback(async (prompt: Prompt, send: () => Promise<Response>) => {
     const id = crypto.randomUUID();
     // Asking while reading history means you want a new answer, so the result is
-    // not buried behind a tab you are not looking at. Asking from the splash
-    // skips the door entirely — you have already said what you came for, so
-    // making you click through to it would just be ceremony.
+    // not buried behind a tab you are not looking at. Asking from the cover
+    // skips both doors — you have already said what you came for, and pitching
+    // an account at someone mid-question is the worst moment to do it.
     setView("home");
-    setEntered(true);
+    setStage("app");
     setEntries((prev) => [...prev, { id, prompt, status: "pending" }]);
 
     try {
@@ -220,8 +231,13 @@ export default function Home() {
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
     >
-      {!entered ? (
-        <Intro onEnter={() => setEntered(true)} />
+      {stage === "cover" ? (
+        // Where to go next is decided when the cover has finished leaving
+        // rather than when it was clicked, which quietly buys the session
+        // lookup the length of the animation to come back in.
+        <Intro onEnter={() => setStage(user ? "app" : "welcome")} />
+      ) : stage === "welcome" ? (
+        <Welcome onUser={setUser} onDone={() => setStage("app")} />
       ) : (
         <>
           <header
@@ -386,15 +402,6 @@ export default function Home() {
 }
 
 /**
- * The front door. It holds the name and exactly one way forward — no nav, no
- * sign-in, no upload control. The app's whole proposition is "show me a piece",
- * and that lands harder after a beat of nothing than it would as one more
- * button competing in a toolbar.
- *
- * Dropping or pasting a photo here still works and goes straight through; the
- * splash is a door, not a gate.
- */
-/**
  * The house, drawn rather than imported.
  *
  * An icon set would be several hundred kilobytes of dependency for one glyph,
@@ -491,6 +498,15 @@ function useExit(onDone: () => void) {
   return { exiting, start, onAnimationEnd };
 }
 
+/**
+ * The front door. It holds the name and exactly one way forward — no nav, no
+ * sign-in, no upload control. The app's whole proposition is "show me a piece",
+ * and that lands harder after a beat of nothing than it would as one more
+ * button competing in a toolbar.
+ *
+ * Dropping or pasting a photo here still works and goes straight through,
+ * skipping the welcome screen as well.
+ */
 function Intro({ onEnter }: { onEnter: () => void }) {
   const { exiting, start, onAnimationEnd } = useExit(onEnter);
 
@@ -515,6 +531,100 @@ function Intro({ onEnter }: { onEnter: () => void }) {
           Curate your Couture
         </span>
       </button>
+    </div>
+  );
+}
+
+/**
+ * The welcome screen: what an account is for, and the two ways to get one.
+ *
+ * It states the case before the buttons rather than after, because the buttons
+ * are meaningless until you know what they buy — and what they buy is only
+ * history and the wishlist. Identifying a piece has never needed an account,
+ * so this offers a way past it rather than pretending otherwise. A wall here
+ * would be asking people to register before they have seen the app work.
+ *
+ * Both ways out — signed in, or straight past — leave through the same exit as
+ * every other screen change.
+ */
+function Welcome({
+  onUser,
+  onDone,
+}: {
+  onUser: (user: User) => void;
+  onDone: () => void;
+}) {
+  // Null while the choice is still open, then the side the pressed button
+  // named. The form can still switch once it is up; this only decides which
+  // way it opens.
+  const [mode, setMode] = useState<AuthMode | null>(null);
+  const { exiting, start, onAnimationEnd } = useExit(onDone);
+
+  return (
+    <div
+      className={`flex flex-1 flex-col items-center justify-center px-6 py-16 ${
+        exiting ? "view-leaving" : "enter-fade"
+      }`}
+      onAnimationEnd={onAnimationEnd}
+    >
+      <div className="w-full max-w-sm">
+        <div className="text-center">
+          <p className="archive-label">Before you start</p>
+          <h1 className="mt-3 text-2xl leading-tight font-medium tracking-tight text-balance">
+            An account keeps what you find
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted text-balance">
+            You need one to keep a history of the pieces you identify and to
+            build a WishList. Without it TwoTone still answers — it just will
+            not remember.
+          </p>
+        </div>
+
+        {mode === null ? (
+          <div className="mt-8 space-y-3">
+            {/* Filled against outlined: creating an account is the one this
+                screen exists to recommend, and signing in is for people who
+                already decided. */}
+            <button
+              type="button"
+              onClick={() => setMode("register")}
+              className="w-full rounded-full border border-accent bg-accent px-6 py-3 text-sm text-background transition hover:bg-transparent hover:text-accent"
+            >
+              Create an account
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className="w-full rounded-full border border-line px-6 py-3 text-sm transition hover:border-accent hover:text-accent"
+            >
+              Sign in
+            </button>
+          </div>
+        ) : (
+          <AuthForm
+            initialMode={mode}
+            className="mt-8 w-full"
+            onClose={() => setMode(null)}
+            // The session is handed up before the exit rather than after, so
+            // the app behind this screen is already signed in by the time it
+            // is uncovered — no flash of the signed-out header.
+            onSignedIn={(user) => {
+              onUser(user);
+              start();
+            }}
+          />
+        )}
+
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={start}
+            className="text-xs text-muted transition-colors hover:text-accent"
+          >
+            Continue without an account
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
