@@ -25,6 +25,19 @@ type Prompt =
   | { kind: "photo"; previewUrl: string; fileName: string }
   | { kind: "search"; query: string };
 
+/**
+ * One question and the answer to it — the only one on screen at a time.
+ *
+ * Asking again replaces this rather than stacking under it. A thread of past
+ * answers reads like a transcript, but nobody comes back to the home page to
+ * re-read the piece they looked up twenty minutes ago; they come to look
+ * something else up. History is where the old ones live, and it is a better
+ * record than a scrollback because it survives a reload.
+ *
+ * The `id` is what makes the replacement safe. A slow request that resolves
+ * after you have already asked something else finds its entry gone and drops
+ * its result, instead of overwriting the answer you are reading.
+ */
 type Entry = {
   id: string;
   prompt: Prompt;
@@ -35,8 +48,8 @@ type Entry = {
 
 /**
  * `home` is the question the app exists to answer — the photo and search bars,
- * and whatever you have asked so far. It is what both doors open onto: the
- * cover's one button, and the house in the header.
+ * and the answer to the last thing you asked. It is what both doors open onto:
+ * the cover's one button, and the house in the header.
  *
  * The For You feed is not a view of its own. It lives at the foot of `home`,
  * under the prompt, where it fills a screen that was otherwise one heading and
@@ -64,7 +77,7 @@ function isMenuView(view: View): view is MenuView {
 type Stage = "cover" | "welcome" | "app";
 
 export default function Home() {
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [answer, setAnswer] = useState<Entry | null>(null);
   const [dragging, setDragging] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<View>("home");
@@ -83,7 +96,13 @@ export default function Home() {
    */
   const taste = user ? loadedTaste : null;
   const inputRef = useRef<HTMLInputElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  /**
+   * The object URL behind the photo currently on screen, if the question was a
+   * photo. A ref rather than state because it is a resource to release, not
+   * something to render — and dropping the entry that owned it is the last
+   * moment anything holds a reference to free it by.
+   */
+  const preview = useRef<string | null>(null);
 
   /**
    * The profile follows the identity, not the page. Signing in has to bring a
@@ -119,11 +138,6 @@ export default function Home() {
       .catch(() => setUser(null));
   }, []);
 
-  useEffect(() => {
-    if (view === "home")
-      endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [entries, view]);
-
   /**
    * Ends the session and puts you back on the home page, which is the one
    * screen that still works without an account. Staying put would leave you
@@ -137,8 +151,8 @@ export default function Home() {
 
   /**
    * A photo and a typed search are the same interaction with different input:
-   * append a pending entry, wait, replace it with the answer. Only the request
-   * differs, so only the request is passed in.
+   * put a pending entry on screen in place of whatever was there, wait, then
+   * fill it in. Only the request differs, so only the request is passed in.
    */
   const ask = useCallback(async (prompt: Prompt, send: () => Promise<Response>) => {
     const id = crypto.randomUUID();
@@ -148,28 +162,38 @@ export default function Home() {
     // an account at someone mid-question is the worst moment to do it.
     setView("home");
     setStage("app");
-    setEntries((prev) => [...prev, { id, prompt, status: "pending" }]);
+
+    // The answer on its way out takes its preview with it. Done before the
+    // state change rather than in a cleanup, because this is the last line that
+    // still knows which URL is being orphaned.
+    if (preview.current) URL.revokeObjectURL(preview.current);
+    preview.current = prompt.kind === "photo" ? prompt.previewUrl : null;
+
+    setAnswer({ id, prompt, status: "pending" });
+    // The answer just replaced may have been long enough to have been scrolled
+    // through. The new one begins at the top and should be met there.
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // A reply is only still wanted if nothing has been asked since it was sent.
+    // Checking the id makes a slow request that lands late harmless: it finds
+    // the screen has moved on and quietly drops what it came back with.
+    const settle = (resolve: (entry: Entry) => Entry) =>
+      setAnswer((prev) => (prev?.id === id ? resolve(prev) : prev));
 
     try {
       const res = await send();
       const data = await res.json();
-      setEntries((prev) =>
-        prev.map((entry) =>
-          entry.id !== id
-            ? entry
-            : res.ok
-              ? { ...entry, status: "done", record: data.record }
-              : { ...entry, status: "error", error: data.error },
-        ),
+      settle((entry) =>
+        res.ok
+          ? { ...entry, status: "done", record: data.record }
+          : { ...entry, status: "error", error: data.error },
       );
     } catch {
-      setEntries((prev) =>
-        prev.map((entry) =>
-          entry.id === id
-            ? { ...entry, status: "error", error: "Network request failed." }
-            : entry,
-        ),
-      );
+      settle((entry) => ({
+        ...entry,
+        status: "error",
+        error: "Network request failed.",
+      }));
     }
   }, []);
 
@@ -323,7 +347,7 @@ export default function Home() {
                 }}
                 onSkip={() => setView("home")}
               />
-            ) : entries.length === 0 ? (
+            ) : answer === null ? (
               // The question first, the same whether or not you are signed in,
               // then the feed underneath for anyone who has an account to build
               // one from. Signed out it is left off rather than rendered empty:
@@ -341,36 +365,37 @@ export default function Home() {
                 )}
               </>
             ) : (
-              <div className="space-y-10">
-                {entries.map((entry) => (
-                  <section key={entry.id} className="space-y-4">
-                    {/* What you asked, echoed back on the right so a long
-                        thread stays readable as a back-and-forth. */}
-                    <div className="flex justify-end">
-                      {entry.prompt.kind === "photo" ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={entry.prompt.previewUrl}
-                          alt={entry.prompt.fileName}
-                          className="max-h-64 rounded-2xl border border-line object-contain"
-                        />
-                      ) : (
-                        <p className="max-w-md rounded-2xl border border-line px-4 py-2.5 text-sm break-words">
-                          {entry.prompt.query}
-                        </p>
-                      )}
-                    </div>
-                    {entry.status === "pending" && <Thinking />}
-                    {entry.status === "error" && (
-                      <p className="slab-card rounded-2xl p-5 text-sm text-muted">
-                        {entry.error}
-                      </p>
-                    )}
-                    {entry.record && <GarmentCard record={entry.record} />}
-                  </section>
-                ))}
-                <div ref={endRef} />
-              </div>
+              <section className="space-y-4">
+                {/* What you asked, echoed back on the right, so the answer
+                    below it reads as a reply to something and not as a page
+                    that arrived on its own. */}
+                <div className="flex justify-end">
+                  {answer.prompt.kind === "photo" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={answer.prompt.previewUrl}
+                      alt={answer.prompt.fileName}
+                      className="max-h-64 rounded-2xl border border-line object-contain"
+                    />
+                  ) : (
+                    <p className="max-w-md rounded-2xl border border-line px-4 py-2.5 text-sm break-words">
+                      {answer.prompt.query}
+                    </p>
+                  )}
+                </div>
+                {answer.status === "pending" && <Thinking />}
+                {answer.status === "error" && (
+                  <p className="slab-card rounded-2xl p-5 text-sm text-muted">
+                    {answer.error}
+                  </p>
+                )}
+                {/* Saving needs somewhere for the piece to be saved *to*, and
+                    a signed-out search is never written to history — so the
+                    control is offered only when there is an account behind it. */}
+                {answer.record && (
+                  <GarmentCard record={answer.record} canSave={!!user} />
+                )}
+              </section>
               )}
             </div>
           </main>
@@ -582,9 +607,9 @@ function Welcome({
             An account keeps what you find
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-muted text-balance">
-            You need one to keep a history of the pieces you identify and to
-            build a WishList. Without it TwoTone still answers — it just will
-            not remember.
+            With one, every piece you look up sticks around and you can start a
+            WishList. Without one TwoTone still answers, it just forgets the
+            second you leave.
           </p>
         </div>
 

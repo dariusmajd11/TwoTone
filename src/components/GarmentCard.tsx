@@ -1,4 +1,5 @@
 import { ListingTable } from "@/components/ListingTable";
+import { WishlistAdd } from "@/components/WishlistAdd";
 import type { IdentificationRecord, ProductionStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<ProductionStatus, string> = {
@@ -27,7 +28,21 @@ function money(amount: number) {
   return `$${Math.round(amount).toLocaleString("en-US")}`;
 }
 
-export function GarmentCard({ record }: { record: IdentificationRecord }) {
+/**
+ * `canSave` is opt-in rather than on by default because this card has three
+ * homes. On the home page it is the answer to what you just asked, and saving
+ * it is the obvious next move. Inside a History or WishList row it is the
+ * expanded body of something already filed — a row there has its own controls,
+ * and a second way to save sitting inside a list the piece is already in would
+ * be one control too many.
+ */
+export function GarmentCard({
+  record,
+  canSave = false,
+}: {
+  record: IdentificationRecord;
+  canSave?: boolean;
+}) {
   const { result, marketLinks } = record;
   const used = marketLinks.filter((l) => l.market === "used");
   const neu = marketLinks.filter((l) => l.market === "new");
@@ -41,10 +56,18 @@ export function GarmentCard({ record }: { record: IdentificationRecord }) {
   return (
     <div className="slab-card rounded-2xl">
       <div className="border-b border-line p-5">
-        <p className="archive-label">
-          {result.brand}
-        </p>
-        <h2 className="mt-1 text-2xl font-medium tracking-tight">{result.name}</h2>
+        {/* `min-w-0` on the text column is what stops a long garment name from
+            pushing the button off the edge of the card — without it the flex
+            child refuses to shrink below its content. */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="archive-label">{result.brand}</p>
+            <h2 className="mt-1 text-2xl font-medium tracking-tight">
+              {result.name}
+            </h2>
+          </div>
+          {canSave && <WishlistAdd recordId={record.id} />}
+        </div>
         <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
           <span className="rounded-full border border-line px-2.5 py-1 text-muted">
             {STATUS_LABEL[result.productionStatus]}
