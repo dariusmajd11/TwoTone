@@ -299,8 +299,10 @@ body::after {
 .wordmark-3d__spin {
   position: relative;
   transform-style: preserve-3d;
-  /* Slow enough to read as a presence rather than a spinner. */
-  animation: wordmark-spin 15s linear infinite;
+  /* Fast enough to be clearly turning while you read the button below it, slow
+     enough not to read as a loading spinner. One number: the pace is even now,
+     so this is the whole speed control. */
+  animation: wordmark-spin 9s linear infinite;
 }
 
 /**
@@ -317,34 +319,27 @@ body::after {
 }
 
 /**
- * A full turn, but not an even one.
+ * A full turn at one unvarying rate — 40 degrees a second, the same at every
+ * angle.
  *
- * At a constant rate the back half of the revolution is the front half's equal,
- * which means the brand name sits mirrored — "enoTowT" — for half of every
- * cycle. That is a cover page that cannot be read, so the angles are spread
- * unevenly across the time instead: the two front quarters get 90% of the
- * cycle between them and the entire back hemisphere is crossed in the
- * remaining 10%, about a second and a half.
+ * This used to spread the angles unevenly across the cycle: the two front
+ * quarters took 90% of the time and the whole back hemisphere was whipped
+ * through in the remaining 10%, with per-keyframe easing to smooth the
+ * handover. The point was legibility, since at an even rate the name spends
+ * half of every cycle mirrored as "enoTowT".
  *
- * Per-keyframe easing does the rest. A timing function declared inside a
- * keyframe governs the segment that *starts* there, so the word accelerates
- * out of the face-on pose, whips flat through the back at a constant rate, and
- * decelerates as the far side swings around to front again.
+ * An even rate is the call here, so that is the cost being paid. The shorter
+ * cycle offsets some of it — the back is crossed in four and a half seconds
+ * rather than seven — and the slab's own shading carries more of the weight
+ * than the text does anyway: the outer layers are foreground and the flank
+ * between them is the border tone, so the object still reads as solid from
+ * behind even while the lettering is reversed.
  */
 @keyframes wordmark-spin {
-  0% {
+  from {
     transform: rotateY(0deg);
-    animation-timing-function: ease-in;
   }
-  45% {
-    transform: rotateY(90deg);
-    animation-timing-function: linear;
-  }
-  55% {
-    transform: rotateY(270deg);
-    animation-timing-function: ease-out;
-  }
-  100% {
+  to {
     transform: rotateY(360deg);
   }
 }
