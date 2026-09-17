@@ -1,12 +1,64 @@
 @import "tailwindcss";
 
+/**
+ * Pale-hide palette, inverted to dark-on-light.
+ *
+ * The backdrop is a light texture — median rgb(187,177,165) — and that forces
+ * the polarity of the entire theme. The previous bone foreground measured
+ * 1.05:1 over its brightest areas, which is not "low contrast", it is invisible.
+ * Dark type on the same pixels measures 7.34:1. There is no version of this
+ * image that works with light text, so everything below is the inverse of the
+ * concrete palette it replaces.
+ *
+ * Still warm-shifted throughout, for the same reason as before: neutral grays
+ * sitting next to garment photography read as dead pixels.
+ *
+ * Every value here is solved against the actual composited pixels rather than
+ * picked by eye. The reference point is the *darkest* 1% of the scrimmed
+ * backdrop, rgb(183,178,170), because on a light theme the darkest background
+ * is where dark text has the least contrast to work with.
+ */
 :root {
-  --background: #0c0c0d;
-  --foreground: #f2f0ec;
-  --muted: #8d8a84;
-  --line: #26262a;
-  --panel: #141416;
-  --accent: #d8cfc0;
+  /* Approximates the scrimmed backdrop's midpoint, so there is no flash of a
+     mismatched colour before the image paints. */
+  --background: #d5cdc3;
+  --foreground: #000000;
+
+  /**
+   * Secondary copy is black too, just fractionally lifted — far closer to
+   * `--foreground` than the old warm brown was. Hierarchy now comes almost
+   * entirely from size and letterspacing rather than from colour, which is the
+   * trade that asking for black type makes: two greys read as two levels, two
+   * blacks do not.
+   *
+   * Not pure #000 only because a label sitting at literally the same value as a
+   * headline flattens the page completely; this keeps a hair of separation while
+   * still reading as black.
+   */
+  --muted: #26221d;
+
+  /**
+   * Borders invert too: on a light ground a separator has to be darker than the
+   * surface, where on the dark slab it had to be lighter.
+   *
+   * Darker than a border on a plain background would need to be. A hairline at
+   * the usual weight measured 1.48:1 here and simply dissolved into the pattern
+   * — a busy ground eats subtle edges. This clears the 3:1 that non-text
+   * boundaries are held to, against the worst case rather than the average.
+   */
+  --line: #685c4e;
+
+  /* Cards are raised paper now rather than a recess — lighter than the wall. */
+  --panel: #e7e1d7;
+
+  /**
+   * The one place that stays off-black. Accent marks what can be interacted
+   * with — button labels, hover states, the active tab fill — and if it goes
+   * black too, nothing on the page signals that it is clickable. Darkened well
+   * past the old espresso so it still reads as black at a glance, with just
+   * enough warmth left to separate a control from a paragraph.
+   */
+  --accent: #2e2115;
 }
 
 @theme inline {
@@ -16,12 +68,396 @@
   --color-line: var(--line);
   --color-panel: var(--panel);
   --color-accent: var(--accent);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-secret-code);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+
+  /**
+   * Secret Code ships exactly one weight, so there is no bold to switch to.
+   * Asking for `font-weight: 700` would make the browser synthesise one, and
+   * synthetic bold works by smearing the glyph against itself — on a geometric
+   * face with hairline strokes and tight counters that fills the bowls of a, e
+   * and o and blobs the joints, which at 12–14px turns to mud.
+   *
+   * Stroking the outline instead thickens every stroke uniformly and leaves the
+   * letterforms intact. `currentColor` matters: the stroke has to follow the
+   * text colour or it fringes wherever type is not the default black.
+   *
+   * The width is in `em`, not `px`, so it scales with type size — an absolute
+   * stroke would weight 11px labels several times harder than the cover
+   * wordmark and wreck the relationship between them. Checked at both ends of
+   * the range the app actually uses: solid at the 11px archive labels, still
+   * hairline-elegant on the cover wordmark.
+   *
+   * Degrades safely. A browser without `-webkit-text-stroke` simply renders the
+   * type at its natural weight rather than breaking.
+   */
+  -webkit-text-stroke: 0.035em currentColor;
+
+  /**
+   * A pale hide — an all-over texture with no composition to it, unlike the
+   * studio shot this replaces. That changes how it has to be placed: there is no
+   * horizon to keep in frame, so `cover` is purely about filling the viewport
+   * and the crop can fall anywhere without losing the subject.
+   *
+   * It is not tiled. The source is a photographed square with no seamless edge,
+   * so `repeat` would draw a hard grid line every 1600px; `cover` shows exactly
+   * one copy and never reveals an edge.
+   *
+   * `fixed` keeps the hide still while the feed scrolls across it, so content
+   * moves over the material rather than dragging it along.
+   *
+   * The vignette inverts with the theme — it darkens the corners by a little
+   * warm shadow now rather than crushing them to near-black, which on a light
+   * ground would read as damage rather than falloff.
+   *
+   * The scrim that makes this legible is on `::before`, not here — see below.
+   */
+  background-image:
+    radial-gradient(
+      120% 120% at 50% 40%,
+      transparent 55%,
+      rgb(109 99 85 / 0.45) 100%
+    ),
+    url("./backdrop.webp");
+  background-repeat: no-repeat;
+  background-position:
+    center,
+    center;
+  background-size:
+    cover,
+    cover;
+  background-attachment: fixed;
+}
+
+/**
+ * Two fixed layers sit between the backdrop photo and all content: a scrim and
+ * a grain. They are split across the two pseudo-elements rather than stacked as
+ * two background-images on one, because `opacity` and `mix-blend-mode` apply to
+ * the whole element — one layer cannot be strong while the other stays faint
+ * unless they are separate boxes.
+ *
+ * Both are `position: fixed`, so they stay registered with the fixed backdrop
+ * while the feed scrolls over it. Both are inert (`pointer-events: none`) and
+ * behind everything (`z-index: -1`), so they never intercept the page's
+ * drag-and-drop handlers.
+ */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/**
+ * The legibility scrim, and the reason the hide can be used at all.
+ *
+ * This one lightens rather than darkens. Untreated, the texture's darkest
+ * passages put `--foreground` at 3.86:1 — under the 4.5:1 floor, so body copy
+ * would fail wherever the pattern happens to run dark. A warm paper wash at 0.50
+ * lifts that to 7.79:1, comfortably into AAA, which the near-hairline strokes of
+ * Secret Code need more than a sturdier face would.
+ *
+ * The scrim is a warm off-white rather than plain white on purpose: the hide is
+ * a faintly cool gray, and the rest of the palette is warm-shifted. Washing it
+ * warm pulls the whole surface into the same family as the espresso accent
+ * instead of leaving a cold gray patch behind warm type.
+ *
+ * Opacity is the dial, and it is a direct trade against the pattern: at 0.50 the
+ * texture retains 61% of its original tonal spread, which is enough for the
+ * scales to stay legible as scales. Push it toward 0.62 and copy gets safer
+ * while the hide flattens into plain paper; pull it to 0.40 and the pattern
+ * comes forward but the darkest passages start failing under body text.
+ */
+body::before {
+  background-color: #efeae1;
+  opacity: 0.5;
+}
+
+/**
+ * Fine grain over the hide, which breaks up the banding the scrim's flat fill
+ * would otherwise show across the image's soft passages, and re-adds the tooth
+ * that WebP compression smooths away.
+ *
+ * `multiply`, not the `overlay` this used on the dark theme. Overlay lightens
+ * anything above mid-gray, so over a pale ground it washes the grain out exactly
+ * where it is needed. Multiply only ever darkens, which on paper reads as tooth.
+ * Held very low, because the hide is already a busy surface and grain stacked on
+ * pattern turns to mud.
+ *
+ * Raw feTurbulence output is *coloured* noise with a varying alpha channel,
+ * which shows up as faint rainbow confetti. The filter ends with a saturate-0
+ * pass to strip the colour and a matrix that forces alpha to 1, leaving clean
+ * opaque grayscale grain that blend modes act on predictably.
+ *
+ * `stitchTiles='stitch'` makes each tile seamless, and the tile is painted at
+ * its natural size — scaling a stitched tile up reintroduces the seam it was
+ * meant to remove.
+ */
+body::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeColorMatrix values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  opacity: 0.06;
+  mix-blend-mode: multiply;
+}
+
+/**
+ * Archive card. Slightly translucent so the hide's pattern carries through the
+ * panel instead of stopping dead at its edge — the card reads as vellum laid
+ * over the material rather than a rectangle floating above a photo of it.
+ *
+ * The card sits *lighter* than the surface behind it, the reverse of the dark
+ * theme where it was a recess. On paper a panel that reads as raised is the one
+ * that catches light, so the bevel is a white top edge and the shadow falls
+ * below it.
+ *
+ * Shadows are warm and far lighter than their dark-theme counterparts. Neutral
+ * black at the old opacities sits on a pale warm ground as a dirty smudge; these
+ * are tinted toward the palette's brown and pulled back to roughly a quarter of
+ * the old strength.
+ */
+.slab-card {
+  background-color: color-mix(in srgb, var(--panel) 82%, transparent);
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 1px 2px rgb(74 53 32 / 0.08),
+    0 12px 32px -12px rgb(74 53 32 / 0.22);
+}
+
+/* Header and footer are ground glass over the hide, not opaque bars. */
+.slab-bar {
+  background-color: color-mix(in srgb, var(--background) 72%, transparent);
+}
+
+/**
+ * Floating menus get the same edges as a card but an opaque fill. Translucency
+ * is fine for a panel sitting in the flow — behind it is just the hide. A
+ * dropdown sits over body copy, and letting a headline show through it makes
+ * both harder to read. The deeper shadow does the lifting that the transparency
+ * used to.
+ */
+.slab-menu {
+  background-color: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    0 2px 4px rgb(74 53 32 / 0.12),
+    0 18px 48px -12px rgb(74 53 32 / 0.35);
+}
+
+/**
+ * Small-caps label used for field names on the garment card and the section
+ * headers — the typographic tell that makes this read as an archive.
+ */
+.archive-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/**
+ * The cover wordmark: "TwoTone" as a solid extruded object turning on its
+ * vertical axis.
+ *
+ * The depth is real 3D, not a stack of text-shadows. A shadow is painted flat
+ * in the element's own plane, so it stays a silhouette pinned behind the glyphs
+ * and the illusion collapses the moment the type turns — the "sides" would
+ * never come into view. Instead the component stacks copies of the word at
+ * descending `translateZ`, which `preserve-3d` sorts by actual position in
+ * space, so turning the word genuinely reveals its flank.
+ *
+ * Depth is measured in `em` so it scales with the type: the wordmark doubles in
+ * size at `sm`, and a `px` extrusion would stay put and read as a thin veneer
+ * on the larger face.
+ */
+.wordmark-3d {
+  /* Short enough to give real convergence — at 2000px the turn flattens into a
+     horizontal squash and stops reading as depth at all. */
+  perspective: 900px;
+}
+
+/**
+ * Tilt and spin are separate elements on purpose. A single transform combining
+ * them would have the tilt spin along with the word, swinging the whole object
+ * around the viewer's axis; keeping the tilt on the parent holds the camera
+ * still and lets the word rotate under it, which is what shows off the top edge.
+ */
+.wordmark-3d__tilt {
+  transform: rotateX(11deg);
+  transform-style: preserve-3d;
+}
+
+.wordmark-3d__spin {
+  position: relative;
+  transform-style: preserve-3d;
+  /* Slow enough to read as a presence rather than a spinner. */
+  animation: wordmark-spin 15s linear infinite;
+}
+
+/**
+ * Every copy but the first is taken out of flow and laid exactly over it, so
+ * the first one alone sets the heading's size and the rest cannot widen it.
+ */
+.wordmark-3d__layer {
+  position: absolute;
+  inset: 0;
+}
+
+.wordmark-3d__layer:first-child {
+  position: relative;
+}
+
+/**
+ * A full turn, but not an even one.
+ *
+ * At a constant rate the back half of the revolution is the front half's equal,
+ * which means the brand name sits mirrored — "enoTowT" — for half of every
+ * cycle. That is a cover page that cannot be read, so the angles are spread
+ * unevenly across the time instead: the two front quarters get 90% of the
+ * cycle between them and the entire back hemisphere is crossed in the
+ * remaining 10%, about a second and a half.
+ *
+ * Per-keyframe easing does the rest. A timing function declared inside a
+ * keyframe governs the segment that *starts* there, so the word accelerates
+ * out of the face-on pose, whips flat through the back at a constant rate, and
+ * decelerates as the far side swings around to front again.
+ */
+@keyframes wordmark-spin {
+  0% {
+    transform: rotateY(0deg);
+    animation-timing-function: ease-in;
+  }
+  45% {
+    transform: rotateY(90deg);
+    animation-timing-function: linear;
+  }
+  55% {
+    transform: rotateY(270deg);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+
+/**
+ * Leaving a screen — the cover on the way in, the app on the way back out.
+ *
+ * Nothing slides away to one side, because nothing arrives from the other; a
+ * lateral move promises a carousel the app does not have. A screen settles back
+ * instead, a few pixels up and a hair smaller, which reads as the thing you
+ * just left receding rather than as a page being shoved off.
+ *
+ * `forwards` matters. Without it the screen snaps back to full opacity on the
+ * final frame and flashes before React swaps it out.
+ */
+.view-leaving {
+  animation: view-exit 240ms ease-in forwards;
+  /* A second click during the exit would queue a second transition. */
+  pointer-events: none;
+}
+
+@keyframes view-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.985);
+  }
+}
+
+/**
+ * Every button answers the press itself.
+ *
+ * A screen transition covers the clicks that change what you are looking at,
+ * but most clicks here do not: a tab, a photo picker, a history row. Those
+ * still deserve an acknowledgement, and the cheapest honest one is the control
+ * giving slightly under the finger.
+ *
+ * Deliberately tiny. At 0.985 it is barely a nudge on a small pill and still
+ * only a pixel or two on a full-width history row — anything deeper turns the
+ * wide controls into a visible lurch.
+ *
+ * `:active` only, so it costs nothing until a press actually happens, and the
+ * transition is short enough to land inside the same gesture.
+ */
+button {
+  transition: transform 110ms ease-out;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/**
+ * The two halves of the arrival. The bars only fade, because they are sticky
+ * and a transform on a sticky element is a fight not worth having; the content
+ * between them also rises, which is what makes the app feel like it comes up
+ * to meet you rather than simply appearing.
+ *
+ * `both` holds the opening frame during the delay — without it the content
+ * paints at full opacity for 60ms and then starts the fade from nothing.
+ */
+.enter-fade {
+  animation: enter-fade 380ms ease-out both;
+}
+
+.enter-rise {
+  animation: enter-rise 420ms cubic-bezier(0.2, 0.7, 0.3, 1) 60ms both;
+}
+
+@keyframes enter-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* Respect users who have asked for less motion and visual noise. */
+@media (prefers-reduced-motion: reduce) {
+  /**
+   * The cover's exit is skipped in JavaScript rather than here, because this
+   * transition is load-bearing: the swap waits on `animationend`, and a rule
+   * that removed the animation would leave the button doing nothing at all.
+   */
+  .enter-fade,
+  .enter-rise {
+    animation: none;
+  }
+
+  button {
+    transition: none;
+  }
+
+  button:active:not(:disabled) {
+    transform: none;
+  }
+
+  body::after {
+    opacity: 0.1;
+  }
+
+  /**
+   * Parked at an angle rather than squared up to the viewer. Stopping the
+   * animation at 0deg would hide the extrusion edge-on behind the front face
+   * and leave these users looking at flat text for no reason — the depth is
+   * the point, and depth is not motion.
+   */
+  .wordmark-3d__spin {
+    animation: none;
+    transform: rotateY(-26deg);
+  }
 }

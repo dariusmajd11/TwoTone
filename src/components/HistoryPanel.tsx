@@ -1,16 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GarmentCard } from "@/components/GarmentCard";
+import { RecordRow } from "@/components/RecordRow";
 import type { IdentificationRecord } from "@/lib/types";
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 /**
  * Fetches on every mount rather than caching, because the page unmounts this
@@ -43,7 +35,7 @@ export function HistoryPanel() {
 
   if (error) {
     return (
-      <p className="rounded-2xl border border-line bg-panel p-5 text-sm text-muted">
+      <p className="slab-card rounded-2xl p-5 text-sm text-muted">
         {error}
       </p>
     );
@@ -51,7 +43,7 @@ export function HistoryPanel() {
 
   if (!records) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl border border-line bg-panel p-5">
+      <div className="flex items-center gap-3 slab-card rounded-2xl p-5">
         <span className="size-2 animate-pulse rounded-full bg-accent" />
         <span className="text-sm text-muted">Loading your history…</span>
       </div>
@@ -72,56 +64,14 @@ export function HistoryPanel() {
 
   return (
     <div className="space-y-3">
-      {records.map((record) => {
-        const open = openId === record.id;
-        return (
-          <article
-            key={record.id}
-            className="overflow-hidden rounded-2xl border border-line bg-panel"
-          >
-            <button
-              type="button"
-              onClick={() => setOpenId(open ? null : record.id)}
-              aria-expanded={open}
-              className="flex w-full items-center gap-4 p-4 text-left transition hover:bg-foreground/5"
-            >
-              {record.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={record.imageUrl}
-                  alt={record.result.name}
-                  className="size-16 shrink-0 rounded-lg border border-line object-cover"
-                />
-              ) : (
-                <span className="size-16 shrink-0 rounded-lg border border-line" />
-              )}
-
-              <span className="min-w-0 flex-1">
-                <span className="block text-[11px] tracking-widest text-muted uppercase">
-                  {record.result.brand}
-                </span>
-                <span className="mt-0.5 block truncate text-sm">
-                  {record.result.name}
-                </span>
-                <span className="mt-0.5 block text-xs text-muted">
-                  {record.result.year ?? "Year unknown"} ·{" "}
-                  {formatDate(record.createdAt)}
-                </span>
-              </span>
-
-              <span aria-hidden className="shrink-0 text-xs text-muted">
-                {open ? "Hide" : "View"}
-              </span>
-            </button>
-
-            {open && (
-              <div className="border-t border-line p-4">
-                <GarmentCard record={record} />
-              </div>
-            )}
-          </article>
-        );
-      })}
+      {records.map((record) => (
+        <RecordRow
+          key={record.id}
+          record={record}
+          open={openId === record.id}
+          onToggle={() => setOpenId(openId === record.id ? null : record.id)}
+        />
+      ))}
     </div>
   );
 }

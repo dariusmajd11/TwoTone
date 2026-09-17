@@ -1,3 +1,4 @@
+import { ListingTable } from "@/components/ListingTable";
 import type { IdentificationRecord, ProductionStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<ProductionStatus, string> = {
@@ -16,7 +17,7 @@ const CONFIDENCE_LABEL = {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[11px] uppercase tracking-widest text-muted">{label}</dt>
+      <dt className="archive-label">{label}</dt>
       <dd className="mt-1 text-sm">{value}</dd>
     </div>
   );
@@ -31,10 +32,16 @@ export function GarmentCard({ record }: { record: IdentificationRecord }) {
   const used = marketLinks.filter((l) => l.market === "used");
   const neu = marketLinks.filter((l) => l.market === "new");
 
+  // The most specific search term, which is the same string the market links
+  // are built from — so the table and the links below it agree on what is being
+  // looked for. Falls back to brand + name when the model returned no terms.
+  const listingQuery =
+    result.searchTerms[0] ?? `${result.brand} ${result.name}`.trim();
+
   return (
-    <div className="rounded-2xl border border-line bg-panel">
+    <div className="slab-card rounded-2xl">
       <div className="border-b border-line p-5">
-        <p className="text-[11px] uppercase tracking-widest text-muted">
+        <p className="archive-label">
           {result.brand}
         </p>
         <h2 className="mt-1 text-2xl font-medium tracking-tight">{result.name}</h2>
@@ -84,7 +91,7 @@ export function GarmentCard({ record }: { record: IdentificationRecord }) {
 
         {result.identifyingDetails.length > 0 && (
           <div>
-            <p className="text-[11px] uppercase tracking-widest text-muted">
+            <p className="archive-label">
               How we know
             </p>
             <ul className="mt-2 space-y-1.5">
@@ -101,6 +108,13 @@ export function GarmentCard({ record }: { record: IdentificationRecord }) {
               ))}
             </ul>
           </div>
+        )}
+
+        {/* Actual items first, then the search links. The table answers "can I
+            buy this right now, in my size, for how much"; the links below are
+            the six marketplaces that have no API to ask. */}
+        {listingQuery && (
+          <ListingTable key={listingQuery} query={listingQuery} />
         )}
 
         {(used.length > 0 || neu.length > 0) && (
@@ -129,7 +143,7 @@ function MarketRow({
 }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-widest text-muted">{label}</p>
+      <p className="archive-label">{label}</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {links.map((link) => (
           <a

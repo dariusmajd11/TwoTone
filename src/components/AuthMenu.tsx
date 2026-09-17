@@ -27,9 +27,20 @@ export function AuthMenu({
 
   if (user) {
     return (
-      <div className="flex items-center gap-3 text-xs">
-        <span className="text-muted">{user.displayName ?? user.email}</span>
-        <button type="button" onClick={signOut} className="text-muted hover:text-accent">
+      <div className="flex min-w-0 items-center gap-3 text-xs">
+        {/* Who you are is reassurance, not a control — it yields first when the
+            header runs out of room, and truncates rather than shoving the only
+            actual button off the edge. Secret Code is near-monospace and far
+            wider than a proportional face, so this overflows sooner than the
+            character count suggests. */}
+        <span className="hidden max-w-[16ch] truncate text-muted sm:inline-block">
+          {user.displayName ?? user.email}
+        </span>
+        <button
+          type="button"
+          onClick={signOut}
+          className="shrink-0 text-muted hover:text-accent"
+        >
           Sign out
         </button>
       </div>
@@ -105,10 +116,10 @@ function AuthForm({
   return (
     <form
       onSubmit={submit}
-      className="absolute right-0 z-20 mt-3 w-72 space-y-3 rounded-2xl border border-line bg-panel p-4"
+      className="absolute right-0 z-20 mt-3 w-72 space-y-3 slab-menu rounded-2xl p-4"
     >
       <div className="flex items-center justify-between">
-        <p className="text-xs tracking-widest text-muted uppercase">
+        <p className="archive-label">
           {mode === "login" ? "Sign in" : "Create account"}
         </p>
         <button
@@ -145,7 +156,9 @@ function AuthForm({
         <p className="text-xs text-muted">{PASSWORD_RULE}</p>
       )}
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {/* red-400 was tuned for the dark theme and washes out to roughly 2:1 on
+          the pale panel; red-700 is the same hue at a weight that survives it. */}
+      {error && <p className="text-xs text-red-700">{error}</p>}
 
       <button
         type="submit"
