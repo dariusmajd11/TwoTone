@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type MenuView = "foryou" | "history" | "wishlist";
+export type MenuView = "history" | "wishlist";
 
 /**
  * The three-bar menu at the top right: everywhere you can go that is not the
@@ -12,9 +12,13 @@ export type MenuView = "foryou" | "history" | "wishlist";
  * the place you return to most, so it keeps a permanent mark of its own in the
  * header — the rows in here are all places you visit and leave again, which is
  * what a menu is for.
+ *
+ * The For You feed is not in here either, for the opposite reason: it is part
+ * of the home page now rather than a place of its own, and a menu row leading
+ * to something already on screen is a row that teaches you the menu is
+ * unreliable.
  */
 const ITEMS: { view: MenuView; label: string }[] = [
-  { view: "foryou", label: "For You" },
   { view: "history", label: "History" },
   { view: "wishlist", label: "WishList" },
 ];

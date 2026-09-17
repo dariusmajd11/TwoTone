@@ -38,17 +38,18 @@ type Entry = {
  * and whatever you have asked so far. It is what both doors open onto: the
  * cover's one button, and the house in the header.
  *
- * The feed reads like a destination, but it is not the one to land on. Arriving
- * on a list of things to buy answers a question nobody has asked yet, and it is
- * the slowest screen in the app to boot besides — so `foryou` sits in the menu
- * with the other places you visit and leave again. `setup` is the questionnaire
- * behind it, a screen rather than a modal because it is long enough to scroll.
+ * The For You feed is not a view of its own. It lives at the foot of `home`,
+ * under the prompt, where it fills a screen that was otherwise one heading and
+ * a lot of nothing. That also puts it in the one place it makes sense: the
+ * question comes first, and the suggestions are what to read if you have not
+ * got one. `setup` is the questionnaire behind the feed, a screen rather than a
+ * modal because it is long enough to scroll.
  */
-type View = "home" | "foryou" | "history" | "wishlist" | "setup";
+type View = "home" | "history" | "wishlist" | "setup";
 
 /** Everything the three-bar menu can reach, which is every view but `home`. */
 function isMenuView(view: View): view is MenuView {
-  return view === "foryou" || view === "history" || view === "wishlist";
+  return view === "history" || view === "wishlist";
 }
 
 /**
@@ -310,28 +311,35 @@ export default function Home() {
               <HistoryPanel />
             ) : view === "wishlist" ? (
               <WishlistPanel />
-            ) : view === "foryou" ? (
-              <ForYou onOpen={search} onSetup={() => setView("setup")} />
             ) : view === "setup" ? (
               <TasteSetup
                 existing={taste}
                 onSaved={(next) => {
                   setTaste(next);
-                  // Onto the feed rather than home, because the feed is what
-                  // the answers were for — sending someone back to the search
-                  // bar would leave them wondering what the questions did.
-                  setView("foryou");
+                  // Home is where the answers show up, at the foot of the page
+                  // under the prompt, so saving lands there rather than leaving
+                  // someone wondering what the questions just did.
+                  setView("home");
                 }}
                 onSkip={() => setView("home")}
               />
             ) : entries.length === 0 ? (
-              // The same question whether or not you are signed in. An account
-              // buys you a history, a wishlist and a feed; it does not change
-              // what the app is for, so it does not change where you land.
-              <Empty
-                onPick={() => inputRef.current?.click()}
-                signedIn={!!user}
-              />
+              // The question first, the same whether or not you are signed in,
+              // then the feed underneath for anyone who has an account to build
+              // one from. Signed out it is left off rather than rendered empty:
+              // the endpoint would only answer 401, and a heading followed by
+              // nothing is worse than the space it was filling.
+              <>
+                <Empty
+                  onPick={() => inputRef.current?.click()}
+                  signedIn={!!user}
+                />
+                {user && (
+                  <div className="mt-4 border-t border-line pt-10">
+                    <ForYou onOpen={search} onSetup={() => setView("setup")} />
+                  </div>
+                )}
+              </>
             ) : (
               <div className="space-y-10">
                 {entries.map((entry) => (
@@ -744,7 +752,9 @@ function Empty({
   signedIn: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center py-24 text-center">
+    // Roomier above than below, because below there is now a feed on most
+    // visits and the gap to it should read as a seam, not a second screen.
+    <div className="flex flex-col items-center pt-20 pb-12 text-center">
       <h1 className="max-w-md text-3xl leading-tight font-medium tracking-tight text-balance">
         What is that piece?
       </h1>
